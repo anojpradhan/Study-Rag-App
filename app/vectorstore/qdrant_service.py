@@ -92,7 +92,10 @@ class QdrantService:
         study_space_id: str,
         limit: int = 5,
     ) -> list[dict]:
-        """Search for relevant chunks within one Study Space."""
+        """Search for relevant, unique chunks within one Study Space."""
+
+        # Retrieve extra candidates because some may contain duplicate text.
+        candidate_limit = min(limit * 3, 60)
 
         results = self.client.query_points(
             collection_name=self.collection_name,
@@ -101,20 +104,37 @@ class QdrantService:
                 must=[
                     models.FieldCondition(
                         key="study_space_id",
-                        match=models.MatchValue(
-                            value=study_space_id,
-                        ),
+                        match=models.MatchValue(value=study_space_id),
                     )
                 ]
             ),
-            limit=limit,
+            limit=candidate_limit,
             with_payload=True,
         ).points
 
-        return [
-            {
-                "score": result.score,
-                **(result.payload or {}),
-            }
-            for result in results
-        ]
+        unique_results = []
+        seen_texts = set()
+
+        for result in results:
+            payload = result.payload or {}
+            text = payload.get("text", "")
+
+            # Normalize whitespace and capitalization for duplicate detection.
+            normalized_text = " ".join(text.casefold().split())
+
+            if not normalized_text or normalized_text in seen_texts:
+                continue
+
+            seen_texts.add(normalized_text)
+
+            unique_results.append(
+                {
+                    "score": result.score,
+                    **payload,
+                }
+            )
+
+            if len(unique_results) >= limit:
+                break
+
+        return unique_results
