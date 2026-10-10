@@ -27,7 +27,7 @@ class DocumentLoader:
         reader = PdfReader(path)
         pages: list[DocumentPage] = []
 
-        for page, page_number in enumerate(reader.pages, start=1):
+        for page_number, page in enumerate(reader.pages, start=1):
             text = page.extract_text() or ""
 
             if not text.strip():

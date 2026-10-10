@@ -13,10 +13,12 @@ from fastapi import (
 from app.chunking.fixed_size import FixedSizeChunkingStrategy
 from app.chunking.paragraph import ParagraphChunkingStrategy
 from app.chunking.service import ChunkingService
+from app.embeddings.embedding_service import EmbeddingService
 from app.ingestion.document_loader import DocumentLoader
 from app.ingestion.models import Document
 from app.ingestion.service import IngestionService
 from app.ingestion.text_cleaner import TextCleaner
+from app.vectorstore.qdrant_service import QdrantService
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,9 @@ chunking_service = ChunkingService(
         chunk_size=1000,
     ),
 )
+embedding_service = EmbeddingService()
+
+qdrant_service = QdrantService()
 
 
 @router.post("/upload")
@@ -101,6 +106,10 @@ async def upload_document(
             pages=pages,
             strategy=chunking_strategy,
         )
+        embeddings = embedding_service.embed_texts([chunk.text for chunk in chunks])
+        stored_chunks = qdrant_service.store_chunks(
+            chunks=chunks, embeddings=embeddings
+        )
 
     except (ValueError, FileNotFoundError) as exc:
         file_path.unlink(missing_ok=True)
@@ -133,4 +142,7 @@ async def upload_document(
         "chunks": len(chunks),
         "chunking_strategy": chunking_strategy,
         "status": "chunked",
+        "embedded_chunks": len(embeddings),
+        "stored_chunks": stored_chunks,
+        "vector_collection": "study_chunks",
     }
