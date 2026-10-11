@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_primary_model: str = "gemini-3.8-flash"
     gemini_fallback_model: str = "gemini-3.5-flash-lite"
+    redis_url: str = "redis://localhost:6379/0"
 
     class Config:
         env_file = ".env"
