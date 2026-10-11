@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from app.embeddings.embedding_service import EmbeddingService
@@ -7,6 +9,8 @@ from app.retrieval.retrieval_service import RetrievalService
 from app.schemas.ask import AskRequest, AskResponse
 from app.services.memory_service import MemoryService
 from app.vectorstore.qdrant_service import QdrantService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ask", tags=["RAG"])
 
@@ -41,6 +45,7 @@ def ask_question(request: AskRequest) -> AskResponse:
         return AskResponse(**result)
 
     except Exception as exc:
+        logger.exception("Failed to process the RAG ask request.")
         raise HTTPException(
             status_code=500,
             detail="Failed to generate an answer from study materials.",

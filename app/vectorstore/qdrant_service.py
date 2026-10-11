@@ -50,6 +50,8 @@ class QdrantService:
         if not chunks:
             return 0
 
+        # Recreate the collection if it was deleted.
+        self._create_collection()
         points = []
 
         for chunk, embedding in zip(

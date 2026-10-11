@@ -24,7 +24,7 @@ class MemoryService:
         """Return recent messages in chronological order."""
         key = self._get_key(study_space_id, session_id)
         stored_messages = self.client.lrange(key, 0, -1)
-        return [json.load(message) for message in stored_messages]
+        return [json.loads(message) for message in stored_messages]
 
     def save_exchange(
         self,
