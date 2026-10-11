@@ -5,6 +5,7 @@ from app.llm.gemini_service import GeminiService
 from app.rag.rag_service import RAGService
 from app.retrieval.retrieval_service import RetrievalService
 from app.schemas.ask import AskRequest, AskResponse
+from app.services.memory_service import MemoryService
 from app.vectorstore.qdrant_service import QdrantService
 
 router = APIRouter(prefix="/ask", tags=["RAG"])
@@ -18,10 +19,12 @@ retrieval_service = RetrievalService(
 )
 
 gemini_service = GeminiService()
+memory_service = MemoryService()
 
 rag_service = RAGService(
     retrieval_service=retrieval_service,
     gemini_service=gemini_service,
+    memory_service=memory_service,
 )
 
 
@@ -31,6 +34,7 @@ def ask_question(request: AskRequest) -> AskResponse:
         result = rag_service.answer_question(
             query=request.query,
             study_space_id=request.study_space_id,
+            session_id=request.session_id,
             limit=request.limit,
         )
 
