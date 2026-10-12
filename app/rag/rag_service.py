@@ -31,24 +31,24 @@ class RAGService:
         )
 
         prompt = f"""
-You rewrite questions for semantic search over a student's study documents.
-
-Use the conversation history to resolve references such as "it",
-"that one", "the second one", and "what about its advantages".
-
-Return only one standalone search query.
-Do not answer the question.
-Do not add facts that are not present in the conversation.
-If the question is already standalone, preserve its meaning.
-
-CONVERSATION HISTORY:
-{conversation}
-
-LATEST QUESTION:
-{query}
-
-STANDALONE SEARCH QUERY:
-"""
+        You rewrite questions for semantic search over a student's study documents.
+        
+        Use the conversation history to resolve references such as "it",
+        "that one", "the second one", and "what about its advantages".
+        
+        Return only one standalone search query.
+        Do not answer the question.
+        Do not add facts that are not present in the conversation.
+        If the question is already standalone, preserve its meaning.
+        
+        CONVERSATION HISTORY:
+        {conversation}
+        
+        LATEST QUESTION:
+        {query}
+        
+        STANDALONE SEARCH QUERY:
+        """
 
         try:
             result = self.gemini_service.generate_answer(prompt)
@@ -81,6 +81,10 @@ STANDALONE SEARCH QUERY:
             study_space_id=study_space_id,
             limit=limit,
         )
+        #keep only chunks that meet threshold 
+        min_relevance_score = 0.35
+
+        chunks = [chunk for chunk in chunks if chunk["score"] >= min_relevance_score]
 
         if not chunks:
             answer = (
