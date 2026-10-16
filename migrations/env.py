@@ -5,14 +5,15 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
+from app.models import user  # noqa: F401
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-#load the database URL from application settings.
-# and we need to escape percent signs for Alembic's ConfigParser.
+# Load the database URL from application settings.
+# Escape percent signs for Alembic's ConfigParser.
 config.set_main_option(
     "sqlalchemy.url",
     settings.database_url.replace("%", "%%"),
