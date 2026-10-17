@@ -1,5 +1,6 @@
+
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -21,7 +22,7 @@ def make_user(
         email=email,
         password_hash=hash_password(password),
         is_active=is_active,
-        created_at=datetime.now(UTC),
+        created_at=datetime.now(timezone.utc),
     )
 
 
@@ -33,8 +34,7 @@ class FakeDB:
         self.added_user = None
 
     def scalar(self, query):
-        # Used by registration to check for duplicate emails
-        # and by login to find an existing account.
+        # Used by registration and login.
         return self.user
 
     def add(self, user: User):
@@ -45,7 +45,10 @@ class FakeDB:
             user.id = uuid.uuid4()
 
         if user.created_at is None:
-            user.created_at = datetime.now(UTC)
+            user.created_at = datetime.now(timezone.utc)
+
+        if user.is_active is None:
+            user.is_active = True
 
     def commit(self):
         pass
@@ -90,7 +93,6 @@ def test_register_user():
         assert "password" not in data
         assert "password_hash" not in data
 
-        # Ensure the password is hashed, not stored as plaintext.
         assert fake_db.added_user is not None
         assert fake_db.added_user.password_hash != "StudyRAG_Test_123"
 
