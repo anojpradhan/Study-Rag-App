@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     gemini_fallback_model: str = "gemini-3.5-flash-lite"
     redis_url: str = "redis://localhost:6379/0"
     database_url: str
+    jwt_secret_key: SecretStr
+    access_token_expire_minutes:int= 30
 
 
 settings = Settings()
