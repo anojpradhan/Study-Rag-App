@@ -14,6 +14,11 @@ from app.models.user import User
 client = TestClient(app)
 
 
+# -------------------------------------------------------------------
+# Test helpers
+# -------------------------------------------------------------------
+
+
 def make_user(
     email: str = "student@example.com",
     is_active: bool = True,
@@ -44,6 +49,11 @@ def make_study_space(
     )
 
 
+# -------------------------------------------------------------------
+# In-memory database mock
+# -------------------------------------------------------------------
+
+
 class FakeQuery:
     """Supports the SQLAlchemy query operations used by Study Spaces."""
 
@@ -59,8 +69,6 @@ class FakeQuery:
             matches = True
 
             for condition in conditions:
-                # SQLAlchemy binary expressions expose their left side,
-                # operator, and right side.
                 column = condition.left.key
                 expected = condition.right.value
                 actual = getattr(item, column)
@@ -103,8 +111,10 @@ class FakeDB:
     def items_for(self, model):
         if model is User:
             return self.users
+
         if model is StudySpace:
             return self.study_spaces
+
         return []
 
     def query(self, model):
@@ -120,12 +130,17 @@ class FakeDB:
         if isinstance(item, StudySpace):
             if item.id is None:
                 item.id = uuid.uuid4()
+
             now = datetime.now(UTC)
+
             if item.created_at is None:
                 item.created_at = now
+
             if item.updated_at is None:
                 item.updated_at = now
+
             self.study_spaces.append(item)
+
         elif isinstance(item, User):
             self.users.append(item)
 
@@ -139,6 +154,11 @@ class FakeDB:
         if isinstance(item, StudySpace) and item in self.study_spaces:
             self.study_spaces.remove(item)
             self.deleted_spaces.append(item)
+
+
+# -------------------------------------------------------------------
+# Fixtures
+# -------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -164,7 +184,13 @@ def setup_api():
 def auth_headers():
     user = make_user()
     token = create_access_token(subject=str(user.id))
+
     return {"Authorization": f"Bearer {token}"}
+
+
+# -------------------------------------------------------------------
+# Create tests
+# -------------------------------------------------------------------
 
 
 def test_create_study_space(setup_api):
@@ -179,26 +205,33 @@ def test_create_study_space(setup_api):
     )
 
     assert response.status_code == 201
+
     data = response.json()
 
     assert data["name"] == "Machine Learning"
     assert data["description"] == "ML study notes"
     assert data["user_id"] == str(user.id)
     assert "id" in data
+    assert "created_at" in data
+    assert "updated_at" in data
     assert len(fake_db.study_spaces) == 1
 
 
 def test_create_multiple_study_spaces(setup_api):
     _, fake_db = setup_api
 
-    for name in ["Machine Learning", "Cloud Computing", "Databases"]:
+    names = ["Machine Learning", "Cloud Computing", "Databases"]
+
+    for name in names:
         response = client.post(
             "/api/v1/study-spaces/",
             json={"name": name, "description": None},
         )
+
         assert response.status_code == 201
 
     assert len(fake_db.study_spaces) == 3
+    assert {space.name for space in fake_db.study_spaces} == set(names)
 
 
 def test_create_study_space_rejects_blank_name(setup_api):
@@ -208,6 +241,11 @@ def test_create_study_space_rejects_blank_name(setup_api):
     )
 
     assert response.status_code == 422
+
+
+# -------------------------------------------------------------------
+# List and retrieve tests
+# -------------------------------------------------------------------
 
 
 def test_list_only_current_users_study_spaces(setup_api):
@@ -224,27 +262,32 @@ def test_list_only_current_users_study_spaces(setup_api):
     response = client.get("/api/v1/study-spaces/")
 
     assert response.status_code == 200
+
     data = response.json()
 
     assert len(data) == 1
     assert data[0]["name"] == "My Space"
+    assert data[0]["user_id"] == str(user.id)
 
 
 def test_get_study_space(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.get(f"/api/v1/study-spaces/{space.id}")
 
     assert response.status_code == 200
     assert response.json()["id"] == str(space.id)
+    assert response.json()["name"] == space.name
 
 
 def test_get_another_users_study_space_returns_404(setup_api):
     _, fake_db = setup_api
     other_user = make_user("other@example.com")
     space = make_study_space(other_user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.get(f"/api/v1/study-spaces/{space.id}")
@@ -252,9 +295,15 @@ def test_get_another_users_study_space_returns_404(setup_api):
     assert response.status_code == 404
 
 
+# -------------------------------------------------------------------
+# Update tests
+# -------------------------------------------------------------------
+
+
 def test_update_study_space(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.patch(
@@ -266,14 +315,19 @@ def test_update_study_space(setup_api):
     )
 
     assert response.status_code == 200
-    assert response.json()["name"] == "Deep Learning"
-    assert response.json()["description"] == "Updated description"
+
+    data = response.json()
+
+    assert data["name"] == "Deep Learning"
+    assert data["description"] == "Updated description"
     assert space.name == "Deep Learning"
+    assert space.description == "Updated description"
 
 
 def test_update_only_description(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.patch(
@@ -289,6 +343,7 @@ def test_update_only_description(setup_api):
 def test_update_rejects_empty_payload(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.patch(
@@ -302,6 +357,7 @@ def test_update_rejects_empty_payload(setup_api):
 def test_update_rejects_blank_name(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.patch(
@@ -316,6 +372,7 @@ def test_update_another_users_space_returns_404(setup_api):
     _, fake_db = setup_api
     other_user = make_user("other@example.com")
     space = make_study_space(other_user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.patch(
@@ -327,17 +384,25 @@ def test_update_another_users_space_returns_404(setup_api):
     assert space.name == "Machine Learning"
 
 
+# -------------------------------------------------------------------
+# Delete tests
+# -------------------------------------------------------------------
+
+
 def test_delete_study_space(setup_api):
     user, fake_db = setup_api
     space = make_study_space(user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.delete(f"/api/v1/study-spaces/{space.id}")
 
     assert response.status_code == 204
     assert space not in fake_db.study_spaces
+    assert space in fake_db.deleted_spaces
 
     get_response = client.get(f"/api/v1/study-spaces/{space.id}")
+
     assert get_response.status_code == 404
 
 
@@ -345,6 +410,7 @@ def test_delete_another_users_space_returns_404(setup_api):
     _, fake_db = setup_api
     other_user = make_user("other@example.com")
     space = make_study_space(other_user.id)
+
     fake_db.study_spaces.append(space)
 
     response = client.delete(f"/api/v1/study-spaces/{space.id}")
@@ -353,13 +419,11 @@ def test_delete_another_users_space_returns_404(setup_api):
     assert space in fake_db.study_spaces
 
 
-@pytest.mark.parametrize(
-    "method,path",
-    [
-        ("get", "/api/v1/study-spaces/"),
-        ("post", "/api/v1/study-spaces/"),
-    ],
-)
+# -------------------------------------------------------------------
+# Authentication and validation tests
+# -------------------------------------------------------------------
+
+
 @pytest.mark.parametrize(
     "method,path",
     [
