@@ -5,9 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
-from app.models.user import User
-from app.models.study_space import StudySpace
-from app.models import user  # noqa: F401
+from app.models import StudyDocument, StudySpace, User  # noqa: F401
 
 config = context.config
 
