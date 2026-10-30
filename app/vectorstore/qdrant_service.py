@@ -88,6 +88,24 @@ class QdrantService:
 
         return len(points)
 
+    def delete_document_chunks(self, document_id: str) -> None:
+        """Delete all Qdrant chunks belonging to a document."""
+
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="document_id",
+                            match=models.MatchValue(value=document_id),
+                        )
+                    ]
+                )
+            ),
+            wait=True,
+        )
+
     def search(
         self,
         query_embedding: list[float],
