@@ -18,7 +18,7 @@ class MemoryService:
         self.max_messages = max_messages
 
     def _get_key(self, study_space_id: str, session_id: str) -> str:
-        return f"study_rag:memory:{study_space_id}: {session_id}"
+        return f"study_rag:memory:{study_space_id}:{session_id}"
 
     def get_history(self, study_space_id: str, session_id: str) -> list[dict[str, str]]:
         """Return recent messages in chronological order."""

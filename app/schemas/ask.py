@@ -1,11 +1,11 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
-    study_space_id: str = "dev-study-space"
+    study_space_id: UUID
     session_id: str = Field(
         default_factory=lambda: str(uuid4()),
         min_length=1,
