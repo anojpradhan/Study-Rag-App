@@ -81,7 +81,7 @@ class RAGService:
             study_space_id=study_space_id,
             limit=limit,
         )
-        #keep only chunks that meet threshold 
+        # keep only chunks that meet threshold
         min_relevance_score = 0.35
 
         chunks = [chunk for chunk in chunks if chunk["score"] >= min_relevance_score]

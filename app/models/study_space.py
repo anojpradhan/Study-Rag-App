@@ -9,6 +9,7 @@ from sqlalchemy.types import Uuid
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.conversation import Conversation
     from app.models.user import User
 
 
@@ -54,4 +55,10 @@ class StudySpace(Base):
     owner: Mapped["User"] = relationship(
         "User",
         back_populates="study_spaces",
+    )
+
+    conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation",
+        back_populates="study_space",
+        cascade="all, delete-orphan",
     )
