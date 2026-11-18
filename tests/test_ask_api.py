@@ -16,9 +16,7 @@ from app.models.user import User
 client = TestClient(app)
 
 
-# -------------------------------------------------------------------
 # Test helpers
-# -------------------------------------------------------------------
 
 def make_user(email: str = "ask-test@example.com") -> User:
     return User(
@@ -43,9 +41,7 @@ def make_study_space(user_id: uuid.UUID) -> StudySpace:
     )
 
 
-# -------------------------------------------------------------------
 # In-memory database mock
-# -------------------------------------------------------------------
 
 class FakeQuery:
     def __init__(self, db, model):
@@ -102,9 +98,7 @@ class FakeDB:
         return FakeQuery(self, model)
 
 
-# -------------------------------------------------------------------
 # Fixtures
-# -------------------------------------------------------------------
 
 @pytest.fixture
 def setup_api():
@@ -131,9 +125,7 @@ def setup_api():
     app.dependency_overrides.pop(get_current_user, None)
 
 
-# -------------------------------------------------------------------
 # Authentication tests
-# -------------------------------------------------------------------
 
 def test_ask_requires_authentication():
     response = client.post(
@@ -149,9 +141,7 @@ def test_ask_requires_authentication():
     assert response.status_code == 401
 
 
-# -------------------------------------------------------------------
 # Validation tests
-# -------------------------------------------------------------------
 
 def test_ask_rejects_empty_query(setup_api):
     _, study_space, _ = setup_api
@@ -185,9 +175,7 @@ def test_ask_rejects_invalid_limit(setup_api):
     assert response.status_code == 422
 
 
-# -------------------------------------------------------------------
 # RAG response tests
-# -------------------------------------------------------------------
 
 def test_ask_returns_answer(monkeypatch, setup_api):
     _, study_space, _ = setup_api
@@ -232,9 +220,7 @@ def test_ask_returns_answer(monkeypatch, setup_api):
     assert data["model_used"] == "test-model"
 
 
-# -------------------------------------------------------------------
 # Study Space ownership tests
-# -------------------------------------------------------------------
 
 def test_ask_rejects_another_users_study_space(setup_api):
     _, _, fake_db = setup_api
