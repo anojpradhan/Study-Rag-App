@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func
@@ -26,6 +27,7 @@ class MessageService:
             .all()
         )
 
+        # Convert newest-first results into chronological order.
         messages.reverse()
 
         return [
@@ -53,11 +55,15 @@ class MessageService:
         if conversation is None:
             raise ValueError("Conversation not found.")
 
+        # Assign distinct timestamps to preserve message order.
+        exchange_time = datetime.now(UTC)
+
         messages = [
             Message(
                 conversation_id=conversation_id,
                 role="user",
                 content=user_message,
+                created_at=exchange_time,
             ),
             Message(
                 conversation_id=conversation_id,
@@ -66,6 +72,7 @@ class MessageService:
                 sources=sources,
                 model_used=model_used,
                 fallback_used=fallback_used,
+                created_at=exchange_time + timedelta(microseconds=1),
             ),
         ]
 
