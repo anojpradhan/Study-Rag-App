@@ -14,11 +14,14 @@ from app.schemas.conversation import (
     ConversationResponse,
     ConversationUpdate,
 )
+from app.services.memory_service import MemoryService
 
 router = APIRouter(
     prefix="/conversations",
     tags=["Conversations"],
 )
+
+memory_service = MemoryService()
 
 
 def get_owned_conversation(
@@ -161,13 +164,7 @@ def update_conversation(
         db=db,
     )
 
-    conversation.title = payload.title.strip()
-
-    if not conversation.title:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Conversation title cannot be blank.",
-        )
+    conversation.title = payload.title
 
     db.commit()
     db.refresh(conversation)
@@ -184,7 +181,7 @@ def delete_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete an owned conversation and its messages."""
+    """Delete an owned conversation, its messages, and Redis history."""
 
     conversation = get_owned_conversation(
         conversation_id=conversation_id,
@@ -192,7 +189,17 @@ def delete_conversation(
         db=db,
     )
 
+    study_space_id = str(conversation.study_space_id)
+    conversation_key = str(conversation.id)
+
+    # Delete the conversation and its messages from PostgreSQL.
     db.delete(conversation)
     db.commit()
+
+    # Remove its temporary conversation history from Redis.
+    memory_service.clear_history(
+        study_space_id=study_space_id,
+        session_id=conversation_key,
+    )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
