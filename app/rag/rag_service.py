@@ -65,6 +65,7 @@ class RAGService:
                 return rewritten_query
 
         except Exception:
+            # Preserve the original question if rewriting fails.
             pass
 
         return query
@@ -81,13 +82,31 @@ class RAGService:
 
         conversation_key = str(conversation_id)
 
+        # 1. Try retrieving recent history from Redis.
         history = self.memory_service.get_history(
             study_space_id=study_space_id,
             session_id=conversation_key,
         )
 
+        # 2. Restore history from PostgreSQL if Redis is empty.
+        if not history:
+            history = self.message_service.get_history(
+                db=db,
+                conversation_id=conversation_id,
+                limit=self.memory_service.max_messages,
+            )
+
+            if history:
+                self.memory_service.restore_history(
+                    study_space_id=study_space_id,
+                    session_id=conversation_key,
+                    messages=history,
+                )
+
+        # 3. Rewrite follow-up questions using conversation history.
         retrieval_query = self._rewrite_query(query, history)
 
+        # 4. Retrieve relevant study material.
         chunks = self.retrieval_service.retrieve(
             query=retrieval_query,
             study_space_id=study_space_id,
@@ -98,6 +117,7 @@ class RAGService:
 
         chunks = [chunk for chunk in chunks if chunk["score"] >= min_relevance_score]
 
+        # 5. Generate answer and prepare source information.
         if not chunks:
             answer = (
                 "I couldn't find relevant information in your uploaded "
@@ -176,7 +196,7 @@ class RAGService:
             model_used = result.model_used
             fallback_used = result.fallback_used
 
-        # PostgreSQL is the permanent source of truth.
+        # 6. Persist the exchange in PostgreSQL.
         self.message_service.save_exchange(
             db=db,
             conversation_id=conversation_id,
@@ -187,7 +207,7 @@ class RAGService:
             fallback_used=fallback_used,
         )
 
-        # Update Redis only after the database commit succeeds.
+        # 7. Update Redis after PostgreSQL succeeds.
         self.memory_service.save_exchange(
             study_space_id=study_space_id,
             session_id=conversation_key,
