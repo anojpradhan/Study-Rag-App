@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import UTC, datetime
 
@@ -9,14 +8,15 @@ from app.api.dependencies import get_current_user
 from app.api.v1.routes.ask import rag_service
 from app.db.session import get_db
 from app.main import app
+from app.models.conversation import Conversation
 from app.models.study_space import StudySpace
 from app.models.user import User
-
 
 client = TestClient(app)
 
 
 # Test helpers
+
 
 def make_user(email: str = "ask-test@example.com") -> User:
     return User(
@@ -41,7 +41,24 @@ def make_study_space(user_id: uuid.UUID) -> StudySpace:
     )
 
 
+def make_conversation(
+    user_id: uuid.UUID,
+    study_space_id: uuid.UUID,
+) -> Conversation:
+    now = datetime.now(UTC)
+
+    return Conversation(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        study_space_id=study_space_id,
+        title="Cloud Computing Conversation",
+        created_at=now,
+        updated_at=now,
+    )
+
+
 # In-memory database mock
+
 
 class FakeQuery:
     def __init__(self, db, model):
@@ -81,9 +98,15 @@ class FakeQuery:
 
 
 class FakeDB:
-    def __init__(self, users=None, study_spaces=None):
+    def __init__(
+        self,
+        users=None,
+        study_spaces=None,
+        conversations=None,
+    ):
         self.users = list(users or [])
         self.study_spaces = list(study_spaces or [])
+        self.conversations = list(conversations or [])
 
     def items_for(self, model):
         if model is User:
@@ -91,6 +114,9 @@ class FakeDB:
 
         if model is StudySpace:
             return self.study_spaces
+
+        if model is Conversation:
+            return self.conversations
 
         return []
 
@@ -100,14 +126,17 @@ class FakeDB:
 
 # Fixtures
 
+
 @pytest.fixture
 def setup_api():
     user = make_user()
     study_space = make_study_space(user.id)
+    conversation = make_conversation(user.id, study_space.id)
 
     fake_db = FakeDB(
         users=[user],
         study_spaces=[study_space],
+        conversations=[conversation],
     )
 
     def override_db():
@@ -127,13 +156,14 @@ def setup_api():
 
 # Authentication tests
 
+
 def test_ask_requires_authentication():
     response = client.post(
         "/api/v1/ask/",
         json={
             "query": "What is cloud computing?",
             "study_space_id": str(uuid.uuid4()),
-            "session_id": "test-session",
+            "conversation_id": str(uuid.uuid4()),
             "limit": 5,
         },
     )
@@ -143,15 +173,17 @@ def test_ask_requires_authentication():
 
 # Validation tests
 
+
 def test_ask_rejects_empty_query(setup_api):
-    _, study_space, _ = setup_api
+    _, study_space, fake_db = setup_api
+    conversation = fake_db.conversations[0]
 
     response = client.post(
         "/api/v1/ask/",
         json={
             "query": "",
             "study_space_id": str(study_space.id),
-            "session_id": "test-session",
+            "conversation_id": str(conversation.id),
             "limit": 5,
         },
     )
@@ -160,14 +192,15 @@ def test_ask_rejects_empty_query(setup_api):
 
 
 def test_ask_rejects_invalid_limit(setup_api):
-    _, study_space, _ = setup_api
+    _, study_space, fake_db = setup_api
+    conversation = fake_db.conversations[0]
 
     response = client.post(
         "/api/v1/ask/",
         json={
             "query": "What is cloud computing?",
             "study_space_id": str(study_space.id),
-            "session_id": "test-session",
+            "conversation_id": str(conversation.id),
             "limit": 100,
         },
     )
@@ -177,21 +210,26 @@ def test_ask_rejects_invalid_limit(setup_api):
 
 # RAG response tests
 
+
 def test_ask_returns_answer(monkeypatch, setup_api):
-    _, study_space, _ = setup_api
+    _, study_space, fake_db = setup_api
+    conversation = fake_db.conversations[0]
 
     def fake_answer_question(
         query: str,
         study_space_id: str,
-        session_id: str,
+        conversation_id: uuid.UUID,
+        db,
         limit: int = 5,
     ) -> dict:
         return {
-            "answer": "Cloud computing provides computing resources over the internet.",
+            "answer": (
+                "Cloud computing provides computing resources over the internet."
+            ),
             "sources": [],
             "model_used": "test-model",
             "fallback_used": False,
-            "session_id": session_id,
+            "conversation_id": conversation_id,
         }
 
     monkeypatch.setattr(
@@ -205,7 +243,7 @@ def test_ask_returns_answer(monkeypatch, setup_api):
         json={
             "query": "What is cloud computing?",
             "study_space_id": str(study_space.id),
-            "session_id": "test-session",
+            "conversation_id": str(conversation.id),
             "limit": 5,
         },
     )
@@ -215,28 +253,34 @@ def test_ask_returns_answer(monkeypatch, setup_api):
     data = response.json()
 
     assert data["answer"].startswith("Cloud computing")
-    assert data["session_id"] == "test-session"
+    assert data["conversation_id"] == str(conversation.id)
     assert data["fallback_used"] is False
     assert data["model_used"] == "test-model"
 
 
 # Study Space ownership tests
 
+
 def test_ask_rejects_another_users_study_space(setup_api):
     _, _, fake_db = setup_api
 
     another_user = make_user("another-user@example.com")
     another_study_space = make_study_space(another_user.id)
+    another_conversation = make_conversation(
+        user_id=another_user.id,
+        study_space_id=another_study_space.id,
+    )
 
     fake_db.users.append(another_user)
     fake_db.study_spaces.append(another_study_space)
+    fake_db.conversations.append(another_conversation)
 
     response = client.post(
         "/api/v1/ask/",
         json={
             "query": "What is cloud computing?",
             "study_space_id": str(another_study_space.id),
-            "session_id": "test-session",
+            "conversation_id": str(another_conversation.id),
             "limit": 5,
         },
     )
