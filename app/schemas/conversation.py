@@ -51,7 +51,7 @@ class MessageResponse(BaseModel):
     content: str
     sources: list[dict[str, Any]] | None = None
     model_used: str | None = None
-    fallback_used: bool
+    fallback_used: bool = False
     created_at: datetime
 
 
