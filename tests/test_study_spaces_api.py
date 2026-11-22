@@ -14,9 +14,7 @@ from app.models.user import User
 client = TestClient(app)
 
 
-# -------------------------------------------------------------------
 # Test helpers
-# -------------------------------------------------------------------
 
 
 def make_user(
@@ -49,9 +47,7 @@ def make_study_space(
     )
 
 
-# -------------------------------------------------------------------
 # In-memory database mock
-# -------------------------------------------------------------------
 
 
 class FakeQuery:
@@ -156,10 +152,7 @@ class FakeDB:
             self.deleted_spaces.append(item)
 
 
-# -------------------------------------------------------------------
 # Fixtures
-# -------------------------------------------------------------------
-
 
 @pytest.fixture
 def setup_api():
@@ -187,10 +180,7 @@ def auth_headers():
 
     return {"Authorization": f"Bearer {token}"}
 
-
-# -------------------------------------------------------------------
 # Create tests
-# -------------------------------------------------------------------
 
 
 def test_create_study_space(setup_api):
@@ -241,12 +231,8 @@ def test_create_study_space_rejects_blank_name(setup_api):
     )
 
     assert response.status_code == 422
-
-
-# -------------------------------------------------------------------
+    
 # List and retrieve tests
-# -------------------------------------------------------------------
-
 
 def test_list_only_current_users_study_spaces(setup_api):
     user, fake_db = setup_api
@@ -295,9 +281,7 @@ def test_get_another_users_study_space_returns_404(setup_api):
     assert response.status_code == 404
 
 
-# -------------------------------------------------------------------
 # Update tests
-# -------------------------------------------------------------------
 
 
 def test_update_study_space(setup_api):
@@ -384,9 +368,7 @@ def test_update_another_users_space_returns_404(setup_api):
     assert space.name == "Machine Learning"
 
 
-# -------------------------------------------------------------------
 # Delete tests
-# -------------------------------------------------------------------
 
 
 def test_delete_study_space(setup_api):
@@ -419,9 +401,7 @@ def test_delete_another_users_space_returns_404(setup_api):
     assert space in fake_db.study_spaces
 
 
-# -------------------------------------------------------------------
 # Authentication and validation tests
-# -------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

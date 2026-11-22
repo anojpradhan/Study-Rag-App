@@ -6,7 +6,7 @@ from app.ingestion.models import DocumentChunk
 
 
 class QdrantService:
-    """Store and search document embeddings in Qdrant."""
+    """Store and retrieve document embeddings in Qdrant."""
 
     def __init__(
         self,
@@ -14,7 +14,6 @@ class QdrantService:
         url: str = "http://localhost:6333",
     ) -> None:
         self.collection_name = collection_name
-
         self.client = QdrantClient(url=url)
 
         self._create_collection()
@@ -50,8 +49,8 @@ class QdrantService:
         if not chunks:
             return 0
 
-        # Recreate the collection if it was deleted.
         self._create_collection()
+
         points = []
 
         for chunk, embedding in zip(
@@ -91,6 +90,11 @@ class QdrantService:
     def delete_document_chunks(self, document_id: str) -> None:
         """Delete all Qdrant chunks belonging to a document."""
 
+        if not self.client.collection_exists(
+            collection_name=self.collection_name,
+        ):
+            return
+
         self.client.delete(
             collection_name=self.collection_name,
             points_selector=models.FilterSelector(
@@ -114,7 +118,11 @@ class QdrantService:
     ) -> list[dict]:
         """Search for relevant, unique chunks within one Study Space."""
 
-        # Retrieve extra candidates because some may contain duplicate text.
+        if not self.client.collection_exists(
+            collection_name=self.collection_name,
+        ):
+            return []
+
         candidate_limit = min(limit * 3, 60)
 
         results = self.client.query_points(
@@ -139,7 +147,6 @@ class QdrantService:
             payload = result.payload or {}
             text = payload.get("text", "")
 
-            # Normalize whitespace and capitalization for duplicate detection.
             normalized_text = " ".join(text.casefold().split())
 
             if not normalized_text or normalized_text in seen_texts:
@@ -158,3 +165,89 @@ class QdrantService:
                 break
 
         return unique_results
+
+    def get_all_chunks(
+        self,
+        study_space_id: str,
+        limit: int = 100,
+    ) -> list[dict]:
+        """
+        Retrieve chunks from a Study Space without semantic similarity.
+
+        Uses pagination so that larger Study Spaces can be retrieved
+        without relying on a single Qdrant scroll request.
+
+        The score of 1.0 indicates inclusion in this full-retrieval
+        operation. It is not a cosine similarity score.
+        """
+
+        if limit <= 0:
+            return []
+
+        if not self.client.collection_exists(
+            collection_name=self.collection_name,
+        ):
+            return []
+
+        all_chunks = []
+        seen_texts = set()
+        offset = None
+
+        while len(all_chunks) < limit:
+            batch_size = min(100, limit - len(all_chunks))
+
+            points, next_offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="study_space_id",
+                            match=models.MatchValue(value=study_space_id),
+                        )
+                    ]
+                ),
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+            if not points:
+                break
+
+            for point in points:
+                payload = point.payload or {}
+                text = payload.get("text", "")
+
+                normalized_text = " ".join(text.casefold().split())
+
+                if not normalized_text or normalized_text in seen_texts:
+                    continue
+
+                seen_texts.add(normalized_text)
+
+                all_chunks.append(
+                    {
+                        "score": 1.0,
+                        **payload,
+                    }
+                )
+
+                if len(all_chunks) >= limit:
+                    break
+
+            if next_offset is None:
+                break
+
+            offset = next_offset
+
+        # Keep the original document order as much as possible.
+        all_chunks.sort(
+            key=lambda chunk: (
+                chunk.get("document_id", ""),
+                chunk.get("page_number", 0),
+                chunk.get("chunk_index", 0),
+            )
+        )
+
+        return all_chunks

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     database_url: str
     jwt_secret_key: SecretStr
-    access_token_expire_minutes:int= 30
+    access_token_expire_minutes: int = 30
 
 
 settings = Settings()
