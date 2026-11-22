@@ -7,12 +7,14 @@ from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.embeddings.embedding_service import EmbeddingService
 from app.llm.gemini_service import GeminiService
+from app.models.conversation import Conversation
 from app.models.study_space import StudySpace
 from app.models.user import User
 from app.rag.rag_service import RAGService
 from app.retrieval.retrieval_service import RetrievalService
 from app.schemas.ask import AskRequest, AskResponse
 from app.services.memory_service import MemoryService
+from app.services.message_service import MessageService
 from app.vectorstore.qdrant_service import QdrantService
 
 logger = logging.getLogger(__name__)
@@ -29,11 +31,13 @@ retrieval_service = RetrievalService(
 
 gemini_service = GeminiService()
 memory_service = MemoryService()
+message_service = MessageService()
 
 rag_service = RAGService(
     retrieval_service=retrieval_service,
     gemini_service=gemini_service,
     memory_service=memory_service,
+    message_service=message_service,
 )
 
 
@@ -59,11 +63,28 @@ def ask_question(
             detail="Study Space not found.",
         )
 
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == request.conversation_id,
+            Conversation.user_id == current_user.id,
+            Conversation.study_space_id == study_space.id,
+        )
+        .first()
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
     try:
         result = rag_service.answer_question(
             query=request.query,
             study_space_id=str(study_space.id),
-            session_id=request.session_id,
+            conversation_id=conversation.id,
+            db=db,
             limit=request.limit,
         )
 
